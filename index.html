@@ -1,0 +1,62 @@
+function generateRealisticSurveyData() {  
+  const FORM_ID = 'YOUR_FORM_ID'; // 替换为实际表单ID  
+  const form = FormApp.openById(FORM_ID);  
+  const ss = SpreadsheetApp.openById(form.getDestinationId());  
+  const sheet = ss.getSheets()[0];  
+
+  // 预习材料帮助程度分布配置  
+  const prepMaterialDistribution = [  
+    { value: "Very helpful", weight: 0.4 },  // 40%  
+    { value: "Helpful",      weight: 0.35 }, // 35%  
+    { value: "Neutral",      weight: 0.15 }, // 15%  
+    { value: "Slightly helpful", weight: 0.07 }, // 7%  
+    { value: "Didn't preview", weight: 0.03 }    // 3%  
+  ];  
+
+  // 生成20条符合教育研究规律的虚拟数据  
+  const mockData = Array.from({length: 20}, (_, i) => {  
+    return [  
+      `Math-${String.fromCharCode(65+i)}`, // 生成唯一课程ID (Math-A, Math-B...)  
+      new Date(2024, 4, 15 + i%5),        // 日期在5月15-19日循环  
+      weightedRandom(prepMaterialDistribution), // 预习材料帮助程度  
+      Math.min(5, Math.round(normalDistribution(4.2, 0.8))), // 顶点式掌握度  
+      Math.min(5, Math.round(normalDistribution(3.8, 1.1)))  // 对称轴掌握度  
+    ];  
+  });  
+
+  // 批量写入数据  
+  sheet.getRange(2, 1, 20, 5).setValues(mockData);  
+
+  // 自动创建分析图表  
+  createPieChart(sheet, 'C2:C21'); // 在预习材料列创建饼图  
+  console.log("数据和图表已生成");  
+}  
+
+// ===== 工具函数 =====  
+function weightedRandom(options) {  
+  const sum = options.reduce((acc, cur) => acc + cur.weight, 0);  
+  const rand = Math.random() * sum;  
+  let cumulative = 0;  
+  for (const {value, weight} of options) {  
+    cumulative += weight;  
+    if (rand < cumulative) return value;  
+  }  
+}  
+
+function normalDistribution(mean, stdDev) {  
+  let u=0, v=0;  
+  while(u === 0) u = Math.random();  
+  while(v === 0) v = Math.random();  
+  return mean + stdDev * Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);  
+}  
+
+function createPieChart(sheet, dataRange) {  
+  const chart = sheet.newChart()  
+   .setChartType(Charts.ChartType.PIE)  
+   .addRange(sheet.getRange(dataRange))  
+   .setPosition(2, 6, 0, 0) // 定位到F2单元格  
+   .setOption('title', '预习材料帮助程度分布')  
+   .setOption('colors', ['#4285F4', '#34A853', '#FBBC05', '#EA4335', '#9B59B6'])  
+   .build();  
+  sheet.insertChart(chart);  
+}  
