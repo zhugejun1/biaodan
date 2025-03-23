@@ -1,32 +1,71 @@
 <!DOCTYPE html>  
-<html lang="en">  
+<html lang="zh-CN">  
 <head>  
     <meta charset="UTF-8">  
-    <title>Survey Data Generator</title>  
+    <title>数学教学评估模拟系统</title>  
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>  
     <style>  
-        .container { max-width: 800px; margin: 2rem auto; padding: 20px; }  
-        .chart-container { margin-top: 2rem; }  
-        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }  
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }  
-        th { background-color: #f2f2f2; }  
+        .dashboard {  
+            max-width: 1200px;  
+            margin: 20px auto;  
+            padding: 20px;  
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);  
+        }  
+        .controls {  
+            margin-bottom: 20px;  
+        }  
+        button {  
+            padding: 10px 20px;  
+            background: #4285F4;  
+            color: white;  
+            border: none;  
+            border-radius: 4px;  
+            cursor: pointer;  
+        }  
+        .grid {  
+            display: grid;  
+            grid-template-columns: 1fr 1fr;  
+            gap: 20px;  
+        }  
+        table {  
+            width: 100%;  
+            border-collapse: collapse;  
+            margin-top: 20px;  
+        }  
+        th, td {  
+            padding: 12px;  
+            border: 1px solid #ddd;  
+            text-align: left;  
+        }  
+        th {  
+            background: #f8f9fa;  
+        }  
     </style>  
 </head>  
 <body>  
-    <div class="container">  
-        <h1>数学课堂调查数据生成器</h1>  
-        <button onclick="generateData()">生成20条样本数据</button>  
-        <div class="chart-container">  
-            <canvas id="prepMaterialsChart"></canvas>  
+    <div class="dashboard">  
+        <div class="controls">  
+            <button onclick="generateData(20)">生成20人数据</button>  
+            <button onclick="generateData(50)">生成50人数据</button>  
         </div>  
+        
+        <div class="grid">  
+            <div>  
+                <canvas id="prepChart"></canvas>  
+            </div>  
+            <div>  
+                <canvas id="masteryChart"></canvas>  
+            </div>  
+        </div>  
+
         <table id="dataTable">  
             <thead>  
                 <tr>  
-                    <th>课程ID</th>  
-                    <th>日期</th>  
-                    <th>预习材料评价</th>  
+                    <th>学号</th>  
+                    <th>预习效果</th>  
                     <th>顶点式掌握度</th>  
                     <th>对称轴掌握度</th>  
+                    <th>综合评分</th>  
                 </tr>  
             </thead>  
             <tbody></tbody>  
@@ -34,99 +73,129 @@
     </div>  
 
 <script>  
-function generateData() {  
-    // 配置参数  
-    const prepMaterialDistribution = [  
-        { value: "Very helpful", weight: 0.4 },  
-        { value: "Helpful", weight: 0.35 },  
-        { value: "Neutral", weight: 0.15 },  
-        { value: "Slightly helpful", weight: 0.07 },  
-        { value: "Didn't preview", weight: 0.03 }  
-    ];  
+let prepChart, masteryChart;  
 
-    // 生成数据  
-    const mockData = Array.from({ length: 20 }, (_, i) => ({  
-        courseId: `Math-${String.fromCharCode(65 + i)}`,  
-        date: new Date(2024, 4, 15 + i % 5).toLocaleDateString(),  
-        prepRating: weightedRandom(prepMaterialDistribution),  
-        vertexMastery: Math.min(5, Math.round(normalDistribution(4.2, 0.8))),  
-        axisMastery: Math.min(5, Math.round(normalDistribution(3.8, 1.1)))  
+// 主生成函数  
+function generateData(count = 20) {  
+    const distribution = {  
+        prep: [  
+            { value: "非常有用", weight: 0.4 },  
+            { value: "有帮助", weight: 0.35 },  
+            { value: "一般", weight: 0.15 },  
+            { value: "帮助不大", weight: 0.07 },  
+            { value: "未预习", weight: 0.03 }  
+        ]  
+    };  
+
+    const dataset = Array.from({length: count}, (_, i) => ({  
+        id: `S${20240001 + i}`,  
+        prep: weightedSelect(distribution.prep),  
+        vertex: clamp(Math.round(normalDist(4.2, 0.8)), 1, 5),  
+        axis: clamp(Math.round(normalDist(3.8, 1.1)), 1, 5)  
     }));  
 
-    // 更新表格  
-    renderTable(mockData);  
-    updateChart(mockData);  
+    renderTable(dataset);  
+    updateCharts(dataset);  
 }  
 
-// 核心算法函数保持不变  
-function weightedRandom(options) {  
-    const sum = options.reduce((acc, cur) => acc + cur.weight, 0);  
-    const rand = Math.random() * sum;  
-    let cumulative = 0;  
-    for (const { value, weight } of options) {  
-        cumulative += weight;  
-        if (rand < cumulative) return value;  
+// 核心算法  
+function normalDist(mean, std) {  
+    let u = 0, v = 0;  
+    while(u === 0) u = Math.random();  
+    while(v === 0) v = Math.random();  
+    return mean + std * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);  
+}  
+
+function weightedSelect(options) {  
+    const total = options.reduce((acc, cur) => acc + cur.weight, 0);  
+    const random = Math.random() * total;  
+    let accumulator = 0;  
+    for(const option of options) {  
+        accumulator += option.weight;  
+        if(random <= accumulator) return option.value;  
     }  
 }  
 
-function normalDistribution(mean, stdDev) {  
-    let u = 0, v = 0;  
-    while (u === 0) u = Math.random();  
-    while (v === 0) v = Math.random();  
-    return mean + stdDev * Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);  
+function clamp(value, min, max) {  
+    return Math.max(min, Math.min(max, value));  
 }  
 
-// 可视化渲染  
+// 可视化  
 function renderTable(data) {  
     const tbody = document.querySelector('#dataTable tbody');  
-    tbody.innerHTML = data.map(item => `  
+    tbody.innerHTML = data.map(student => `  
         <tr>  
-            <td>${item.courseId}</td>  
-            <td>${item.date}</td>  
-            <td>${item.prepRating}</td>  
-            <td>${item.vertexMastery}</td>  
-            <td>${item.axisMastery}</td>  
+            <td>${student.id}</td>  
+            <td>${student.prep}</td>  
+            <td>${'★'.repeat(student.vertex)}</td>  
+            <td>${'★'.repeat(student.axis)}</td>  
+            <td>${((student.vertex + student.axis)/2).toFixed(1)}</td>  
         </tr>  
     `).join('');  
 }  
 
-let chartInstance = null;  
-function updateChart(data) {  
-    const ctx = document.getElementById('prepMaterialsChart');  
-    const ratings = data.map(d => d.prepRating);  
-    
-    const counts = {  
-        'Very helpful': 0,  
-        'Helpful': 0,  
-        'Neutral': 0,  
-        'Slightly helpful': 0,  
-        'Didn\'t preview': 0  
+function updateCharts(data) {  
+    const prepData = aggregate(data.map(d => d.prep));  
+    const masteryData = {  
+        vertex: data.map(d => d.vertex),  
+        axis: data.map(d => d.axis)  
     };  
-    
-    ratings.forEach(r => counts[r]++);  
 
-    if (chartInstance) chartInstance.destroy();  
-    
-    chartInstance = new Chart(ctx, {  
+    // 预习情况饼图  
+    if(prepChart) prepChart.destroy();  
+    prepChart = new Chart(document.getElementById('prepChart'), {  
         type: 'pie',  
         data: {  
-            labels: Object.keys(counts),  
+            labels: Object.keys(prepData),  
             datasets: [{  
-                data: Object.values(counts),  
+                data: Object.values(prepData),  
                 backgroundColor: ['#4285F4', '#34A853', '#FBBC05', '#EA4335', '#9B59B6']  
             }]  
         },  
         options: {  
-            responsive: true,  
             plugins: {  
-                title: {  
-                    display: true,  
-                    text: '预习材料帮助程度分布'  
-                }  
+                title: { display: true, text: '预习材料帮助程度分布' }  
+            }  
+        }  
+    });  
+
+    // 掌握度雷达图  
+    if(masteryChart) masteryChart.destroy();  
+    masteryChart = new Chart(document.getElementById('masteryChart'), {  
+        type: 'radar',  
+        data: {  
+            labels: ['1星', '2星', '3星', '4星', '5星'],  
+            datasets: [{  
+                label: '顶点式',  
+                data: [1,2,3,4,5].map(i => masteryData.vertex.filter(v => v === i).length),  
+                borderColor: '#4285F4',  
+                fill: false  
+            },{  
+                label: '对称轴',  
+                data: [1,2,3,4,5].map(i => masteryData.axis.filter(v => v === i).length),  
+                borderColor: '#34A853',  
+                fill: false  
+            }]  
+        },  
+        options: {  
+            scales: { r: { beginAtZero: true } },  
+            plugins: {  
+                title: { display: true, text: '知识点掌握分布' }  
             }  
         }  
     });  
 }  
+
+// 数据聚合工具  
+function aggregate(arr) {  
+    return arr.reduce((acc, cur) => {  
+        acc[cur] = (acc[cur] || 0) + 1;  
+        return acc;  
+    }, {});  
+}  
+
+// 初始化生成默认数据  
+generateData(20);  
 </script>  
 </body>  
 </html>  
